@@ -4,6 +4,21 @@
     "require": {
     },
     "platform": {
-        "php": "5"
-    }
+        "php": ">=5"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Christian Seiler",
+            "homepage": "http://christian-seiler.de/projekte/php/bbcode/"
+        },
+        {
+            "name": "Marcel Pommer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "mpommer\\": "src/mpommer/"
+        }
+    },
 }
