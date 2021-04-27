@@ -3,6 +3,8 @@
     "homepage": "https://github.com/marselluslongus/stringparser-namespaced",
     "require": {
     },
+    "version": "0.3.3",
+    "type": "library",
     "platform": {
         "php": ">=5"
     },
@@ -13,12 +15,13 @@
             "homepage": "http://christian-seiler.de/projekte/php/bbcode/"
         },
         {
-            "name": "Marcel Pommer"
+            "name": "Marcel Pommer",
+            "email": "marcel@pommer.org"
         }
     ],
     "autoload": {
         "psr-4": {
-            "mpommer\\": "src/mpommer/"
+            "StringParser": "src/"
         }
     }
 }
