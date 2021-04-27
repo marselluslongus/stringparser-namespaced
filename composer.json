@@ -1,0 +1,9 @@
+{
+    "name": "mpommer/stringparser-namespaced",
+    "homepage": "https://github.com/marselluslongus/stringparser-namespaced",
+    "require": {
+    },
+    "platform": {
+        "php": "5"
+    }
+}
