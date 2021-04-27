@@ -21,7 +21,7 @@
     ],
     "autoload": {
         "psr-4": {
-            "StringParser": "src/"
+            "StringParser\\": "src/"
         }
     }
 }
