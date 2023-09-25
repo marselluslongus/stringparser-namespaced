@@ -1138,12 +1138,12 @@ class BBCode extends StringParser
             $ol = strlen($output);
             switch ($node->getFlag('newlinemode.begin', 'integer', self::NEWLINE_PARSE)) {
                 case self::NEWLINE_IGNORE:
-                    if ($ol && $output{0} == "\n") {
+                    if ($ol && $output[0] == "\n") {
                         $before = "\n";
                     }
                 // don't break!
                 case self::NEWLINE_DROP:
-                    if ($ol && $output{0} == "\n") {
+                    if ($ol && $output[0] == "\n") {
                         $output = substr($output, 1);
                         $ol--;
                     }
@@ -1151,12 +1151,12 @@ class BBCode extends StringParser
             }
             switch ($node->getFlag('newlinemode.end', 'integer', self::NEWLINE_PARSE)) {
                 case self::NEWLINE_IGNORE:
-                    if ($ol && $output{$ol-1} == "\n") {
+                    if ($ol && $output[$ol-1] == "\n") {
                         $after = "\n";
                     }
                 // don't break!
                 case self::NEWLINE_DROP:
-                    if ($ol && $output{$ol-1} == "\n") {
+                    if ($ol && $output[$ol-1] == "\n") {
                         $output = substr($output, 0, -1);
                         $ol--;
                     }

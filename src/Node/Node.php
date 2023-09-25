@@ -540,7 +540,7 @@ class Node
      * @param object $node The node to destroy
      * @return bool True on success, else false.
      */
-    public function destroyNode(&$node)
+    public static function destroyNode(&$node)
     {
         if ($node === null) {
             return false;

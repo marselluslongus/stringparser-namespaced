@@ -486,7 +486,7 @@ class StringParser {
         // if yes, how should this be achieved? Another member of
         // StringParser_Node?
         $this->setStatus(0);
-        $res = $this->appendText($this->_text{$topelem->occurredAt});
+        $res = $this->appendText($this->_text[$topelem->occurredAt]);
         if (! $res) {
             return false;
         }
@@ -600,7 +600,7 @@ class StringParser {
                 return false;
             }
             if (! $res) {
-                $res = $this->appendText($this->_text{$this->_cpos});
+                $res = $this->appendText($this->_text[$this->_cpos]);
                 if (! $res) {
                     return false;
                 }
@@ -617,7 +617,7 @@ class StringParser {
         // get subtext
         if ($this->_cpos < strlen($this->_text)) {
             $subtext = substr ($this->_text, $this->_cpos);
-            $res = $this->appendText ($subtext);
+            $res = $this->appendText($subtext);
             if (! $res) {
                 return false;
             }
