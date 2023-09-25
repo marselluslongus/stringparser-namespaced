@@ -3,7 +3,7 @@
     "homepage": "https://github.com/marselluslongus/stringparser-namespaced",
     "require": {
     },
-    "version": "0.3.3",
+    "version": "0.3.3.1",
     "type": "library",
     "platform": {
         "php": ">=5"
