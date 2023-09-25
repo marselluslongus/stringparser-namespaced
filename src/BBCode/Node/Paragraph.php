@@ -93,10 +93,10 @@ class Paragraph extends Node
             $f_begin = $this->_children[0]->getFlag('newlinemode.begin', 'integer', BBCode::NEWLINE_PARSE);
             $f_end = $this->_children[0]->getFlag('newlinemode.end', 'integer', BBCode::NEWLINE_PARSE);
             $content = $this->_children[0]->content;
-            if ($f_begin != BBCode::NEWLINE_PARSE && $content{0} == "\n") {
+            if ($f_begin != BBCode::NEWLINE_PARSE && $content[0] == "\n") {
                 $content = substr($content, 1);
             }
-            if ($f_end != BBCode::NEWLINE_PARSE && $content{strlen($content)-1} == "\n") {
+            if ($f_end != BBCode::NEWLINE_PARSE && $content[strlen($content)-1] == "\n") {
                 $content = substr($content, 0, -1);
             }
             if (!strlen($content)) {
