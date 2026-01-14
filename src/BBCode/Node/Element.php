@@ -39,6 +39,8 @@ namespace StringParser\BBCode\Node;
  *  removed assignments of return value of new by reference
  * marcel.pommer@flane.de 2021-03-23:
  *  PHP7 compliance, namespaces
+ * marcel.pommer@flane.de 2026-01-14:
+ *  PHP8 compliance
  */
 
 use \StringParser\StringParser;
@@ -106,6 +108,11 @@ class Element extends Node
      * @var bool
      */
     var $_paragraphHandled = false;
+
+    /**
+     * @var array
+     */
+    public $_codeInfo;
 
 
     /**

@@ -39,6 +39,8 @@ namespace StringParser;
  *  removed assignments of return value of new by reference
  * marcel.pommer@flane.de 2021-03-23:
  *  PHP7 compliance, namespaces
+ * marcel.pommer@flane.de 2026-01-14:
+ *   PHP8 compliance
  */
 
 use \StringParser\Node\Node;
@@ -85,76 +87,67 @@ class BBCode extends StringParser
      *
      * The BBCode string parser works in search mode
      *
-     * @access protected
      * @var int
      * @see StringParser::MODE_SEARCH, StringParser::MODE_LOOP
      */
-    var $_parserMode = StringParser::MODE_SEARCH;
+    protected $_parserMode = StringParser::MODE_SEARCH;
 
     /**
      * Defined BB Codes
      *
      * The registered BB codes
      *
-     * @access protected
      * @var array
      */
-    var $_codes = array();
+    protected $_codes = array();
 
     /**
      * Registered parsers
      *
-     * @access protected
      * @var array
      */
-    var $_parsers = array();
+    protected $_parsers = array();
 
     /**
      * Defined maximum occurrences
      *
-     * @access protected
      * @var array
      */
-    var $_maxOccurrences = array();
+    protected $_maxOccurrences = array();
 
     /**
      * Root content type
      *
-     * @access protected
      * @var string
      */
-    var $_rootContentType = 'block';
+    protected $_rootContentType = 'block';
 
     /**
      * Do not output but return the tree
      *
-     * @access protected
      * @var bool
      */
-    var $_noOutput = false;
+    protected $_noOutput = false;
 
     /**
      * Global setting: case sensitive
      *
-     * @access protected
      * @var bool
      */
-    var $_caseSensitive = true;
+    protected $_caseSensitive = true;
 
     /**
      * Root paragraph handling enabled
      *
-     * @access protected
      * @var bool
      */
-    var $_rootParagraphHandling = false;
+    protected $_rootParagraphHandling = false;
 
     /**
      * Paragraph handling parameters
-     * @access protected
      * @var array
      */
-    var $_paragraphHandling = array(
+    protected $_paragraphHandling = array(
         'detect_string' => "\n\n",
         'start_tag' => '<p>',
         'end_tag' => "</p>\n"
@@ -165,14 +158,33 @@ class BBCode extends StringParser
      * @access private
      * @var bool
      */
-    var $_mixedAttributeTypes = false;
+    protected $_mixedAttributeTypes = false;
 
     /**
      * Whether to call validation function again (with $action == 'validate_auto') when closetag comes
-     * @access protected
      * @var bool
      */
-    var $_validateAgain = false;
+    protected $_validateAgain = false;
+
+    /**
+     * @var string
+     */
+    private $_savedName;
+
+    /**
+     * @var string
+     */
+    private $_savedValue;
+
+    /*
+     * @var string
+     */
+    protected $_quoting;
+
+    /**
+     * @var int
+     */
+    private $_savedCloseCount;
 
 
     /**
@@ -474,7 +486,6 @@ class BBCode extends StringParser
 
     /**
      * Set a specific status
-     * @access protected
      */
     protected function setStatus($status)
     {
@@ -540,7 +551,6 @@ class BBCode extends StringParser
 
     /**
      * Abstract method Append text depending on current status
-     * @access protected
      * @param string $text The text to append
      * @return bool On success, the function returns true, else false
      */
@@ -576,7 +586,6 @@ class BBCode extends StringParser
      * To achieve this the current top stack object is removed from the
      * tree. Then the current item
      *
-     * @access protected
      * @return bool
      */
     protected function reparseAfterCurrentBlock()
@@ -620,7 +629,6 @@ class BBCode extends StringParser
 
     /**
      * Handle status
-     * @access protected
      * @param int $status The current status
      * @param string $needle The needle that was found
      * @return bool
@@ -836,7 +844,6 @@ class BBCode extends StringParser
     /**
      * Open the next element
      *
-     * @access protected
      * @return bool
      */
     private function _openElement($type = 0)
@@ -908,7 +915,6 @@ class BBCode extends StringParser
     /**
      * Is a node closeable?
      *
-     * @access protected
      * @return bool
      */
     private function _isCloseable($name, &$closecount)
@@ -934,7 +940,6 @@ class BBCode extends StringParser
     /**
      * Revalidate codes when close tags appear
      *
-     * @access protected
      * @return bool
      */
     private function _validateCloseTags($closecount)
@@ -954,7 +959,6 @@ class BBCode extends StringParser
     /**
      * Is a node openable?
      *
-     * @access protected
      * @return bool
      */
     private function _isOpenable($name, &$closecount)
@@ -991,7 +995,6 @@ class BBCode extends StringParser
     /**
      * Is a node openable by closing other nodes?
      *
-     * @access protected
      * @return bool
      */
     private function _isOpenableWithClose($name, &$closecount)
@@ -1029,7 +1032,6 @@ class BBCode extends StringParser
 
     /**
      * Abstract method: Close remaining blocks
-     * @access protected
      */
     protected function closeRemainingBlocks()
     {
@@ -1057,7 +1059,6 @@ class BBCode extends StringParser
     /**
      * Find a node with a specific name in stack
      *
-     * @access protected
      * @return mixed
      */
     private function & _findNamedNode($name, $searchdeeper = false)
@@ -1088,7 +1089,6 @@ class BBCode extends StringParser
 
     /**
      * Abstract method: Output tree
-     * @access protected
      * @return bool
      */
     protected function outputTree()
@@ -1109,7 +1109,6 @@ class BBCode extends StringParser
 
     /**
      * Output a node
-     * @access protected
      * @return bool
      */
     private function _outputNode(&$node)
@@ -1189,7 +1188,6 @@ class BBCode extends StringParser
 
     /**
      * Abstract method: Manipulate the tree
-     * @access protected
      * @return bool
      */
     protected function modifyTree()
@@ -1273,7 +1271,6 @@ class BBCode extends StringParser
 
     /**
      * Handle paragraphs
-     * @access protected
      * @param object $node The node to handle
      * @return bool
      */
@@ -1323,7 +1320,6 @@ class BBCode extends StringParser
 
     /**
      * Search for a paragraph node in tree in upward direction
-     * @access protected
      * @param object $node The node to analyze
      * @return bool
      */
@@ -1342,7 +1338,6 @@ class BBCode extends StringParser
 
     /**
      * Break up nodes
-     * @access protected
      * @param object $node The node to break up
      * @return array
      */
@@ -1419,7 +1414,6 @@ class BBCode extends StringParser
 
     /**
      * Is this node a usecontent node
-     * @access protected
      * @param object $node The node to check
      * @param bool $check_attrs Also check whether 'usecontent?'-attributes exist
      * @return bool
@@ -1463,7 +1457,6 @@ class BBCode extends StringParser
     /**
      * Get canonical name of a code
      *
-     * @access protected
      * @param string $name
      * @return string
      */

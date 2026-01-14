@@ -43,6 +43,8 @@ namespace StringParser;
  *  removed assignments of return value of new by reference
  * marcel.pommer@flane.de 2021-03-23:
  *  PHP7 compliance, namespaces
+ * marcel.pommer@flane.de 2026-01-14:
+ *  PHP8 compliance
  */
 
 
@@ -91,46 +93,45 @@ class StringParser {
      * The subclass that does the string parsing itself will define which
      * mode it will implement.
      *
-     * @access protected
      * @var int
      * @see StringParser::MODE_SEARCH, StringParser::MODE_LOOP
      */
-    var $_parserMode = self::MODE_SEARCH;
+    protected $_parserMode = self::MODE_SEARCH;
 
     /**
      * Raw text
-     * @access protected
      * @var string
      */
-    var $_text = '';
+    protected $_text = '';
 
     /**
      * Parse stack
-     * @access protected
      * @var array
      */
-    var $_stack = array();
+    protected $_stack = array();
 
     /**
      * Current position in raw text
-     * @access protected
      * @var integer
      */
-    var $_cpos = -1;
+    protected $_cpos = -1;
 
     /**
      * Root node
-     * @access protected
      * @var mixed
      */
-    var $_root = null;
+    protected $_root = null;
 
     /**
      * Length of the text
-     * @access protected
      * @var integer
      */
-    var $_length = -1;
+    protected $_length = -1;
+
+    /**
+     * @var string
+     */
+    protected $_output = '';
 
     /**
      * Flag if this object is already parsing a text
@@ -138,27 +139,24 @@ class StringParser {
      * This flag is to prevent recursive calls to the parse() function that
      * would cause very nasty things.
      *
-     * @access protected
      * @var boolean
      */
-    var $_parsing = false;
+    protected $_parsing = false;
 
     /**
      * Strict mode
      *
      * Whether to stop parsing if a parse error occurs.
      *
-     * @access public
      * @var boolean
      */
-    var $strict = false;
+    public $strict = false;
 
     /**
      * Characters or strings to look for
-     * @access protected
      * @var array
      */
-    var $_charactersSearch = array();
+    protected $_charactersSearch = array();
 
     /**
      * Characters currently allowed
@@ -173,44 +171,38 @@ class StringParser {
      * allowed is encountered. If not in strict mode, the character is
      * simply ignored.
      *
-     * @access protected
      * @var array
      */
-    var $_charactersAllowed = array();
+    protected $_charactersAllowed = array();
 
     /**
      * Current parser status
-     * @access protected
      * @var int
      */
-    var $_status = 0;
+    protected $_status = 0;
 
     /**
      * Prefilters
-     * @access protected
      * @var array
      */
-    var $_prefilters = array();
+    protected $_prefilters = array();
 
     /**
      * Postfilters
-     * @access protected
      * @var array
      */
-    var $_postfilters = array();
+    protected $_postfilters = array();
 
     /**
      * Recently reparsed?
-     * @access protected
      * @var bool
      */
-    var $_recentlyReparsed = false;
+    protected $_recentlyReparsed = false;
 
 
     /**
      * Constructor
      *
-     * @access public
     public function __construct()
     {
     }
@@ -220,7 +212,6 @@ class StringParser {
     /**
      * Add a filter
      *
-     * @access public
      * @param int $type The type of the filter
      * @param mixed $callback The callback to call
      * @return bool
@@ -251,7 +242,6 @@ class StringParser {
     /**
      * Remove all filters
      *
-     * @access public
      * @param int $type The type of the filter or 0 for all
      * @return bool
      * @see StringParser::FILTER_PRE, StringParser::FILTER_POST
@@ -279,7 +269,6 @@ class StringParser {
     /**
      * This function parses the text
      *
-     * @access public
      * @param string $text The text to parse
      * @return mixed Either the root object of the tree if no output method
      *               is defined, the tree reoutput to e.g. a string or false
@@ -431,7 +420,6 @@ class StringParser {
 
     /**
      * Abstract method: Manipulate the tree
-     * @access protected
      * @return bool
      */
     protected function modifyTree()
@@ -441,7 +429,6 @@ class StringParser {
 
     /**
      * Abstract method: Output tree
-     * @access protected
      * @return bool
      */
     protected function outputTree()
@@ -456,7 +443,6 @@ class StringParser {
      * To achieve this the current top stack object is removed from the
      * tree. Then the current item
      *
-     * @access protected
      * @return bool
      */
     protected function reparseAfterCurrentBlock()
@@ -499,7 +485,6 @@ class StringParser {
 
     /**
      * Abstract method: Close remaining blocks
-     * @access protected
      */
     protected function closeRemainingBlocks()
     {
@@ -522,7 +507,6 @@ class StringParser {
 
     /**
      * Abstract method: Initialize the parser
-     * @access protected
      */
     private function _parserInit()
     {
@@ -531,7 +515,6 @@ class StringParser {
 
     /**
      * Abstract method: Set a specific status
-     * @access protected
      */
     protected function setStatus($status)
     {
@@ -546,7 +529,6 @@ class StringParser {
 
     /**
      * Abstract method: Handle status
-     * @access protected
      * @param int $status The current status
      * @param string $needle The needle that was found
      * @return bool
@@ -560,7 +542,6 @@ class StringParser {
 
     /**
      * Search mode loop
-     * @access protected
      * @return bool
      */
     private function _searchLoop()
@@ -629,7 +610,6 @@ class StringParser {
     /**
      * Loop mode loop
      *
-     * @access protected
      * @return bool
      */
     private function _loop()
@@ -691,7 +671,6 @@ class StringParser {
 
     /**
      * Abstract method Append text depending on current status
-     * @access protected
      * @param string $text The text to append
      * @return bool On success, the function returns true, else false
      */
@@ -706,7 +685,6 @@ class StringParser {
 
     /**
      * Append text to last text child of current top parser stack node
-     * @access protected
      * @param string $text The text to append
      * @return bool On success, the function returns true, else false
      */
@@ -729,7 +707,6 @@ class StringParser {
      * element is <code>false</code> and the <code>'offset'</code> element
      * is <code>-1</code>.
      *
-     * @access protected
      * @param array $needles
      * @param int $offset
      * @return array
@@ -756,7 +733,6 @@ class StringParser {
     /**
      * Detects a string at the current position
      *
-     * @access protected
      * @param array $needles The strings that are to be detected
      * @param int $offset The current offset
      * @return mixed The string that was detected or the needle
@@ -776,7 +752,6 @@ class StringParser {
     /**
      * Adds a node to the current parse stack
      *
-     * @access protected
      * @param object $node The node that is to be added
      * @return bool True on success, else false.
      * @see StringParser_Node, StringParser::_stack
@@ -795,7 +770,6 @@ class StringParser {
     /**
      * Removes a node from the current parse stack
      *
-     * @access protected
      * @return bool True on success, else false.
      * @see StringParser_Node, StringParser::_stack
      */
@@ -809,7 +783,6 @@ class StringParser {
     /**
      * Execute a method on the top element
      *
-     * @access protected
      * @return mixed
      */
     protected function topNode()
@@ -830,7 +803,6 @@ class StringParser {
     /**
      * Get a variable of the top element
      *
-     * @access protected
      * @return mixed
      */
     protected function topNodeVar($var)
