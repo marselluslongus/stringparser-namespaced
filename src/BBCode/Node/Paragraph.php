@@ -3,17 +3,17 @@
 namespace StringParser\BBCode\Node;
 
 /**
- * BB code string parsing class
+ * BB code string parsing: paragraph node
  *
- * Version: 0.3.3
+ * Version: 0.4.0
  *
  * @author Christian Seiler <spam@christian-seiler.de>
- * @copyright Christian Seiler 2004-2008
+ * @copyright Christian Seiler 2004-2009
  * @package stringparser
  *
  * The MIT License
  *
- * Copyright (c) 2004-2008 Christian Seiler
+ * Copyright (c) 2004-2009 Christian Seiler
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,77 +32,61 @@ namespace StringParser\BBCode\Node;
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
+ * Changes:
+ *  marcel.pommer@flane.de 2012-09-24: removed assignments of return value of new by reference
+ *  marcel.pommer@flane.de 2021-03-23: PHP7 compliance, namespaces
+ *  marcel.pommer@flane.de 2026-11: PHP 8.4 rewrite: declared and typed properties,
+ *   no object references, dead loop mode removed, tree-manipulation bugs fixed
  */
 
-/**
- * marcel.pommer@flane.de 2012-09-24:
- *  removed assignments of return value of new by reference
- * marcel.pommer@flane.de 2021-03-23:
- *  PHP7 compliance, namespaces
- */
-
-use \StringParser\StringParser;
-use \StringParser\BBCode;
-use \StringParser\Node\Node;
+use StringParser\BBCode;
+use StringParser\Node\Node;
 
 
 /**
- * BBCode String parser paragraph node class
+ * BBCode string parser paragraph node class
  *
  * @package stringparser
  */
-class Paragraph extends Node
+final class Paragraph extends Node
 {
-    /**
-     * The type of this node.
-     *
-     * This node is a bbcode paragraph node.
-     *
-     * @access protected
-     * @var int
-     * @see StringParser::BBCode::NODE_PARAGRAPH
-     */
-    var $_type = BBCode::NODE_PARAGRAPH;
+    public int $_type = BBCode::NODE_PARAGRAPH;
+
 
     /**
-     * Determines whether a criterium matches this node
+     * Supports the criterium 'empty': no children, or a single text child that is
+     * empty apart from newlines dropped/ignored by newline handling
      *
-     * @access public
-     * @param string $criterium The criterium that is to be checked
-     * @param mixed $value The value that is to be compared
-     * @return bool True if this node matches that criterium
+     * @param string $criterium
+     * @param mixed $value
+     * @return bool
      */
-    public function matchesCriterium($criterium, $value)
+    public function matchesCriterium(string $criterium, mixed $value): bool
     {
-        if ($criterium == 'empty') {
-            if (!count($this->_children)) {
-                return true;
-            }
-            if (count($this->_children) > 1) {
-                return false;
-            }
-            if ($this->_children[0]->_type != Node::NODE_TEXT) {
-                return false;
-            }
-            if (!strlen($this->_children[0]->content)) {
-                return true;
-            }
-            if (strlen($this->_children[0]->content) > 2) {
-                return false;
-            }
-            $f_begin = $this->_children[0]->getFlag('newlinemode.begin', 'integer', BBCode::NEWLINE_PARSE);
-            $f_end = $this->_children[0]->getFlag('newlinemode.end', 'integer', BBCode::NEWLINE_PARSE);
-            $content = $this->_children[0]->content;
-            if ($f_begin != BBCode::NEWLINE_PARSE && $content[0] == "\n") {
-                $content = substr($content, 1);
-            }
-            if ($f_end != BBCode::NEWLINE_PARSE && $content[strlen($content)-1] == "\n") {
-                $content = substr($content, 0, -1);
-            }
-            if (!strlen($content)) {
-                return true;
-            }
+        if ('empty' !== $criterium) {
             return false;
         }
+        if (!count($this->children)) {
+            return true;
+        }
+        if (count($this->children) > 1) {
+            return false;
+        }
+        $child = $this->children[0];
+        if (Node::NODE_TEXT !== $child->_type) {
+            return false;
+        }
+        $content = $child->content;
+        if (strlen($content) > 2) {
+            return false;
+        }
+        if ((BBCode::NEWLINE_PARSE !== $child->getFlag('newlinemode.begin', 'integer', BBCode::NEWLINE_PARSE)) && str_starts_with($content, "\n")) {
+            $content = substr($content, 1);
+        }
+        if ((BBCode::NEWLINE_PARSE !== $child->getFlag('newlinemode.end', 'integer', BBCode::NEWLINE_PARSE)) && str_ends_with($content, "\n")) {
+            $content = substr($content, 0, -1);
+        }
+        return '' === $content;
     }
 }

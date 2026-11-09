@@ -3,16 +3,12 @@
 namespace StringParser\Node;
 
 /**
- * Generic string parsing infrastructure
+ * Generic string parsing infrastructure: root node
  *
- * These classes provide the means to parse any kind of string into a tree-like
- * memory structure. It would e.g. be possible to create an HTML parser based
- * upon this class.
- *
- * Version: 0.3.3
+ * Version: 0.4.0
  *
  * @author Christian Seiler <spam@christian-seiler.de>
- * @copyright Christian Seiler 2004-2008
+ * @copyright Christian Seiler 2004-2009
  * @package stringparser
  *
  * The MIT License
@@ -36,29 +32,13 @@ namespace StringParser\Node;
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- */
-
-/**
- * marcel.pommer@flane.de 2012-09-24:
- *  removed assignments of return value of new by reference
- * marcel.pommer@flane.de 2021-03-23:
- *  PHP7 compliance, namespaces
- */
-
-
-/**
- * Generic string parser node class
  *
- * This is an abstract class for any type of node that is used within the
- * string parser. General warning: This class contains code regarding references
- * that is very tricky. Please do not touch this code unless you exactly know
- * what you are doing. Incorrect handling of references may cause PHP to crash
- * with a segmentation fault! You have been warned.
- *
- * @package stringparser
+ * Changes:
+ *  marcel.pommer@flane.de 2012-09-24: removed assignments of return value of new by reference
+ *  marcel.pommer@flane.de 2021-03-23: PHP7 compliance, namespaces
+ *  marcel.pommer@flane.de 2026-11: PHP 8.4 rewrite: declared and typed properties,
+ *   no object references, dead loop mode removed, tree-manipulation bugs fixed
  */
-
-use \StringParser\StringParser;
 
 
 /**
@@ -66,17 +46,7 @@ use \StringParser\StringParser;
  *
  * @package stringparser
  */
-class Root extends Node
+final class Root extends Node
 {
-    /**
-     * The type of this node.
-     *
-     * This node is a root node.
-     *
-     * @access protected
-     * @var int
-     * @see StringParser::NODE_ROOT
-     */
-    var $_type = Node::NODE_ROOT;
+    public int $_type = Node::NODE_ROOT;
 }
-

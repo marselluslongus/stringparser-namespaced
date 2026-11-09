@@ -9,10 +9,10 @@ namespace StringParser;
  * memory structure. It would e.g. be possible to create an HTML parser based
  * upon this class.
  *
- * Version: 0.3.3
+ * Version: 0.4.0
  *
  * @author Christian Seiler <spam@christian-seiler.de>
- * @copyright Christian Seiler 2004-2008
+ * @copyright Christian Seiler 2004-2009
  * @package stringparser
  *
  * The MIT License
@@ -36,778 +36,570 @@ namespace StringParser;
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
+ * Changes:
+ *  marcel.pommer@flane.de 2012-09-24: removed assignments of return value of new by reference
+ *  marcel.pommer@flane.de 2021-03-23: PHP7 compliance, namespaces
+ *  marcel.pommer@flane.de 2026-11-09: PHP 8.4 rewrite: declared and typed properties,
+ *   no object references, dead loop mode removed, tree-manipulation bugs fixed
  */
 
-/**
- * marcel.pommer@flane.de 2012-09-24:
- *  removed assignments of return value of new by reference
- * marcel.pommer@flane.de 2021-03-23:
- *  PHP7 compliance, namespaces
- * marcel.pommer@flane.de 2026-01-14:
- *  PHP8 compliance
- */
+use StringParser\Node\Node;
+use StringParser\Node\Root;
 
 
 /**
  * Generic string parser class
  *
- * This is an abstract class for any type of string parser.
+ * Base class for string parsers working in search mode: the subclass defines a
+ * list of needles per status (setStatus()) and handles each needle found
+ * (handleStatus()); text in between is appended via appendText().
  *
  * @package stringparser
  */
-class StringParser {
+class StringParser
+{
+    /**
+     * Parser mode: search for the next needle (the only implemented mode)
+     */
+    public const MODE_SEARCH = 1;
 
     /**
-     * String parser mode: Search for the next character
-     * @see $_parserMode
+     * Parser mode: look at each character; never implemented, parse() returns false
      */
-    const MODE_SEARCH = 1;
-    /**
-     * String parser mode: Look at each character of the string
-     * @see $_parserMode
-     */
-    const MODE_LOOP = 2;
-    /**
-     * Filter type: Prefilter
-     * @see addFilter, $_prefilters
-     */
-    const FILTER_PRE = 1;
-    /**
-     * Filter type: Postfilter
-     * @see addFilter, $_postfilters
-     */
-    const FILTER_POST = 2;
+    public const MODE_LOOP = 2;
 
     /**
-     * String parser mode
+     * Filter type: prefilter
+     */
+    public const FILTER_PRE = 1;
+
+    /**
+     * Filter type: postfilter
+     */
+    public const FILTER_POST = 2;
+
+    /**
+     * Strict mode: stop parsing (parse() returns false) on a parse error
+     */
+    public bool $strict = false;
+
+    /**
+     * Parser mode
+     */
+    protected int $parserMode = self::MODE_SEARCH;
+
+    /**
+     * Raw text (after prefilters)
+     */
+    protected string $text = '';
+
+    /**
+     * Parse stack; index 0 is the root node
      *
-     * There are two possible modes: searchmode and loop mode. In loop mode
-     * every single character is looked at in a loop and it is then decided
-     * what action to take. This is the most straight-forward approach to
-     * string parsing but due to the nature of PHP as a scripting language,
-     * it can also cost performance. In search mode the class posseses a
-     * list of relevant characters for parsing and uses the
-     * {@link PHP_MANUAL#strpos strpos} function to search for the next
-     * relevant character. The search mode will be faster than the loop mode
-     * in most circumstances but it is also more difficult to implement.
-     * The subclass that does the string parsing itself will define which
-     * mode it will implement.
-     *
-     * @var int
-     * @see StringParser::MODE_SEARCH, StringParser::MODE_LOOP
+     * @var list<Node>
      */
-    protected $_parserMode = self::MODE_SEARCH;
+    protected array $stack = [];
 
     /**
-     * Raw text
-     * @var string
+     * Current position in the raw text
      */
-    protected $_text = '';
-
-    /**
-     * Parse stack
-     * @var array
-     */
-    protected $_stack = array();
-
-    /**
-     * Current position in raw text
-     * @var integer
-     */
-    protected $_cpos = -1;
+    protected int $cpos = -1;
 
     /**
      * Root node
-     * @var mixed
      */
-    protected $_root = null;
+    protected ?Root $root = null;
 
     /**
-     * Length of the text
-     * @var integer
+     * Output of outputTree(); null means "return the tree"
      */
-    protected $_length = -1;
+    protected ?string $output = null;
 
     /**
-     * @var string
+     * Guard against recursive parse() calls
      */
-    protected $_output = '';
+    protected bool $parsing = false;
 
     /**
-     * Flag if this object is already parsing a text
+     * Needles to search for in the current status
      *
-     * This flag is to prevent recursive calls to the parse() function that
-     * would cause very nasty things.
-     *
-     * @var boolean
+     * @var list<string>
      */
-    protected $_parsing = false;
-
-    /**
-     * Strict mode
-     *
-     * Whether to stop parsing if a parse error occurs.
-     *
-     * @var boolean
-     */
-    public $strict = false;
-
-    /**
-     * Characters or strings to look for
-     * @var array
-     */
-    protected $_charactersSearch = array();
-
-    /**
-     * Characters currently allowed
-     *
-     * Note that this will only be evaluated in loop mode; in search mode
-     * this would ruin every performance increase. Note that only single
-     * characters are permitted here, no strings. Please also note that in
-     * loop mode, {@link StringParser::_charactersSearch _charactersSearch}
-     * is evaluated before this variable.
-     *
-     * If in strict mode, parsing is stopped if a character that is not
-     * allowed is encountered. If not in strict mode, the character is
-     * simply ignored.
-     *
-     * @var array
-     */
-    protected $_charactersAllowed = array();
+    protected array $charactersSearch = [];
 
     /**
      * Current parser status
-     * @var int
      */
-    protected $_status = 0;
+    protected int $status = 0;
 
     /**
-     * Prefilters
-     * @var array
+     * @var list<callable>
      */
-    protected $_prefilters = array();
+    protected array $prefilters = [];
 
     /**
-     * Postfilters
-     * @var array
+     * @var list<callable>
      */
-    protected $_postfilters = array();
+    protected array $postfilters = [];
 
     /**
-     * Recently reparsed?
-     * @var bool
+     * Set by reparseAfterCurrentBlock() so that the search loop does not advance past the needle
      */
-    protected $_recentlyReparsed = false;
-
-
-    /**
-     * Constructor
-     *
-    public function __construct()
-    {
-    }
-     */
+    protected bool $recentlyReparsed = false;
 
 
     /**
      * Add a filter
      *
-     * @param int $type The type of the filter
-     * @param mixed $callback The callback to call
-     * @return bool
-     * @see StringParser::FILTER_PRE, StringParser::FILTER_POST
+     * @param int $type self::FILTER_PRE or self::FILTER_POST
+     * @param mixed $callback callable string => string
+     * @return bool false if not callable (in this scope) or the type is unknown
      */
-    public function addFilter($type, $callback)
+    public function addFilter(int $type, mixed $callback): bool
     {
-        // make sure the function is callable
-        if (! is_callable($callback)) {
+        if (!is_callable($callback)) {
             return false;
         }
-
         switch ($type) {
             case self::FILTER_PRE:
-                $this->_prefilters[] = $callback;
-                break;
+                $this->prefilters[] = $callback;
+                return true;
             case self::FILTER_POST:
-                $this->_postfilters[] = $callback;
-                break;
+                $this->postfilters[] = $callback;
+                return true;
             default:
                 return false;
         }
-
-        return true;
     }
 
 
     /**
-     * Remove all filters
+     * Remove filters
      *
-     * @param int $type The type of the filter or 0 for all
+     * @param int $type self::FILTER_PRE, self::FILTER_POST or 0 for all
      * @return bool
-     * @see StringParser::FILTER_PRE, StringParser::FILTER_POST
      */
-    public function clearFilters($type = 0)
+    public function clearFilters(int $type = 0): bool
     {
         switch ($type) {
             case 0:
-                $this->_prefilters = array();
-                $this->_postfilters = array();
-                break;
+                $this->prefilters = [];
+                $this->postfilters = [];
+                return true;
             case self::FILTER_PRE:
-                $this->_prefilters = array();
-                break;
+                $this->prefilters = [];
+                return true;
             case self::FILTER_POST:
-                $this->_postfilters = array();
-                break;
+                $this->postfilters = [];
+                return true;
             default:
                 return false;
         }
-        return true;
     }
 
 
     /**
-     * This function parses the text
+     * Parse a text
      *
-     * @param string $text The text to parse
-     * @return mixed Either the root object of the tree if no output method
-     *               is defined, the tree reoutput to e.g. a string or false
-     *               if an internal error occured, such as a parse error if
-     *               in strict mode or the object is already parsing a text.
+     * @param mixed $text The text to parse; cast to string
+     * @return string|Root|false The output, the tree if the parser produces no output,
+     *                           false on an internal error, a parse error in strict mode
+     *                           or a recursive call
      */
-    public function parse($text)
+    public function parse(mixed $text): string|Root|false
     {
-        if ($this->_parsing) {
+        if ($this->parsing) {
             return false;
         }
-        $this->_parsing = true;
-        $this->_text = $this->_applyPrefilters($text);
-        $this->_output = null;
-        $this->_length = strlen($this->_text);
-        $this->_cpos = 0;
-        unset($this->_stack);
-        $this->_stack = array();
-        if (is_object($this->_root)) {
-            Node\Node::destroyNode($this->_root);
+        $this->parsing = true;
+        try {
+            return $this->_parse((string)$text);
+        } finally {
+            $this->parsing = false;
+            $this->stack = [];
         }
-        unset($this->_root);
-        $this->_root = new Node\Root();
-        $this->_stack[0] = $this->_root;
-
-        $this->_parserInit();
-
-        $finished = false;
-
-        while (!$finished) {
-            switch ($this->_parserMode) {
-                case self::MODE_SEARCH:
-                    $res = $this->_searchLoop();
-                    if (! $res) {
-                        $this->_parsing = false;
-                        return false;
-                    }
-                    break;
-                case self::MODE_LOOP:
-                    $res = $this->_loop();
-                    if (! $res) {
-                        $this->_parsing = false;
-                        return false;
-                    }
-                    break;
-                default:
-                    $this->_parsing = false;
-                    return false;
-            }
-
-            $res = $this->closeRemainingBlocks();
-            if (! $res) {
-                if ($this->strict) {
-                    $this->_parsing = false;
-                    return false;
-                } else {
-                    $res = $this->reparseAfterCurrentBlock();
-                    if (! $res) {
-                        $this->_parsing = false;
-                        return false;
-                    }
-                    continue;
-                }
-            }
-            $finished = true;
-        }
-
-        $res = $this->modifyTree();
-
-        if (! $res) {
-            $this->_parsing = false;
-            return false;
-        }
-
-        $res = $this->outputTree();
-
-        if (! $res) {
-            $this->_parsing = false;
-            return false;
-        }
-
-        if (is_null ($this->_output)) {
-            $root =& $this->_root;
-            unset($this->_root);
-            $this->_root = null;
-            while (count($this->_stack)) {
-                unset($this->_stack[count($this->_stack)-1]);
-            }
-            $this->_stack = array();
-            $this->_parsing = false;
-            return $root;
-        }
-
-        $res = Node\Node::destroyNode($this->_root);
-        if (! $res) {
-            $this->_parsing = false;
-            return false;
-        }
-        unset($this->_root);
-        $this->_root = null;
-        while (count($this->_stack)) {
-            unset($this->_stack[count($this->_stack)-1]);
-        }
-        $this->_stack = array();
-
-        $this->_parsing = false;
-        return $this->_output;
     }
 
 
     /**
      * Apply prefilters
      *
-     * It is possible to specify prefilters for the parser to do some
-     * manipulating of the string beforehand.
+     * @param string $text
+     * @return string
      */
-    public function _applyPrefilters($text)
+    protected function applyPrefilters(string $text): string
     {
-        foreach ($this->_prefilters as $filter) {
-            if (is_callable ($filter)) {
-                $ntext = call_user_func($filter, $text);
-                if (is_string($ntext)) {
-                    $text = $ntext;
-                }
-            }
-        }
-        return $text;
+        return $this->_applyFilters($this->prefilters, $text);
     }
 
 
     /**
      * Apply postfilters
      *
-     * It is possible to specify postfilters for the parser to do some
-     * manipulating of the string afterwards.
+     * @param string $text
+     * @return string
      */
-    protected function applyPostfilters($text)
+    protected function applyPostfilters(string $text): string
     {
-        foreach ($this->_postfilters as $filter) {
-            if (is_callable ($filter)) {
-                $ntext = call_user_func($filter, $text);
-                if (is_string($ntext)) {
-                    $text = $ntext;
+        return $this->_applyFilters($this->postfilters, $text);
+    }
+
+
+    /**
+     * Hook: manipulate the tree after parsing
+     *
+     * @return bool
+     */
+    protected function modifyTree(): bool
+    {
+        return true;
+    }
+
+
+    /**
+     * Hook: generate output from the tree into $this->output; leave it null to return the tree
+     *
+     * @return bool
+     */
+    protected function outputTree(): bool
+    {
+        return true;
+    }
+
+
+    /**
+     * Restart parsing after the start of the current block
+     *
+     * Removes the top stack node from the tree, emits the character at which it
+     * occurred as text and continues parsing right after that character.
+     *
+     * @return bool
+     */
+    protected function reparseAfterCurrentBlock(): bool
+    {
+        // this should definitely not happen!
+        if (count($this->stack) < 2) {
+            return false;
+        }
+        $topelem = $this->stack[count($this->stack) - 1];
+
+        if (!$topelem->_parent->removeChild($topelem, false)) {
+            return false;
+        }
+        if (!$this->popNode()) {
+            return false;
+        }
+        if ($topelem->occurredAt < 0) {
+            return false;
+        }
+        $this->setStatus(0);
+        if (!$this->appendText($this->text[$topelem->occurredAt])) {
+            return false;
+        }
+
+        $this->cpos = $topelem->occurredAt + 1;
+        $this->recentlyReparsed = true;
+
+        return true;
+    }
+
+
+    /**
+     * Close all blocks still open at the end of the text
+     *
+     * @return bool
+     */
+    protected function closeRemainingBlocks(): bool
+    {
+        if (1 === count($this->stack)) {
+            return true;
+        }
+        if ($this->strict) {
+            return false;
+        }
+        while (count($this->stack) > 1) {
+            if (!$this->popNode()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    /**
+     * Set a status and its needles
+     *
+     * @param int $status
+     * @return bool
+     */
+    protected function setStatus(int $status): bool
+    {
+        if (0 !== $status) {
+            return false;
+        }
+        $this->charactersSearch = [];
+        $this->status = $status;
+        return true;
+    }
+
+
+    /**
+     * Handle a needle found in the current status
+     *
+     * @param int $status The current status
+     * @param string $needle The needle found at $this->cpos
+     * @return bool
+     */
+    protected function handleStatus(int $status, string $needle): bool
+    {
+        $this->appendText($needle);
+        $this->cpos += strlen($needle);
+        return true;
+    }
+
+
+    /**
+     * Append text depending on the current status
+     *
+     * @param string $text
+     * @return bool
+     */
+    protected function appendText(string $text): bool
+    {
+        if ('' === $text) {
+            return true;
+        }
+        return $this->appendToLastTextChild($text);
+    }
+
+
+    /**
+     * Append text to the last text child of the top stack node
+     *
+     * @param string $text
+     * @return bool
+     */
+    protected function appendToLastTextChild(string $text): bool
+    {
+        $top = $this->_topOfStack();
+        if (null === $top) {
+            return false;
+        }
+        return $top->appendToLastTextChild($text);
+    }
+
+
+    /**
+     * Append a node to the top stack node and push it onto the stack
+     *
+     * @param Node $node
+     * @return bool
+     */
+    protected function pushNode(Node $node): bool
+    {
+        if (!$this->_topOfStack()->appendChild($node)) {
+            return false;
+        }
+        $this->stack[] = $node;
+        return true;
+    }
+
+
+    /**
+     * Pop the top node from the stack (it stays in the tree)
+     *
+     * @return bool
+     */
+    protected function popNode(): bool
+    {
+        array_pop($this->stack);
+        return true;
+    }
+
+
+    /**
+     * Call a method on the top stack node
+     *
+     * @param string $method
+     * @param mixed ...$args
+     * @return mixed null if the method does not exist
+     */
+    protected function topNode(string $method, mixed ...$args): mixed
+    {
+        $top = $this->_topOfStack();
+        if ((null === $top) || !is_callable([$top, $method])) {
+            return null;
+        }
+        return $top->$method(...$args);
+    }
+
+
+    /**
+     * Read a property of the top stack node
+     *
+     * @param string $var
+     * @return mixed
+     */
+    protected function topNodeVar(string $var): mixed
+    {
+        return $this->_topOfStack()?->$var;
+    }
+
+
+    /**
+     * @param string $text
+     * @return string|Root|false
+     */
+    private function _parse(string $text): string|Root|false
+    {
+        $this->text = $this->applyPrefilters($text);
+        $this->output = null;
+        $this->cpos = 0;
+        if (null !== $this->root) {
+            Node::destroyNode($this->root);
+        }
+        $this->root = new Root();
+        $this->stack = [$this->root];
+
+        $this->setStatus(0);
+
+        while (true) {
+            if (self::MODE_SEARCH !== $this->parserMode) {
+                return false;
+            }
+            if (!$this->_searchLoop()) {
+                return false;
+            }
+            if ($this->closeRemainingBlocks()) {
+                break;
+            }
+            if ($this->strict || !$this->reparseAfterCurrentBlock()) {
+                return false;
+            }
+        }
+
+        if (!$this->modifyTree() || !$this->outputTree()) {
+            return false;
+        }
+
+        $root = $this->root;
+        $this->root = null;
+
+        if (null === $this->output) {
+            return $root;
+        }
+        if (!Node::destroyNode($root)) {
+            return false;
+        }
+        return $this->output;
+    }
+
+
+    /**
+     * Search mode loop
+     *
+     * @return bool
+     */
+    private function _searchLoop(): bool
+    {
+        while (true) {
+            $this->recentlyReparsed = false;
+
+            [$needle, $offset] = $this->_strpos($this->charactersSearch, $this->cpos);
+
+            if (null === $needle) {
+                // original status 0 => no problem
+                if (0 === $this->status) {
+                    break;
                 }
+                if ($this->strict) {
+                    return false;
+                }
+                // break up parsing operation of the current node
+                if (!$this->reparseAfterCurrentBlock()) {
+                    return false;
+                }
+                continue;
+            }
+
+            if (!$this->appendText(substr($this->text, $this->cpos, $offset - $this->cpos))) {
+                return false;
+            }
+            $this->cpos = $offset;
+
+            if (!$this->handleStatus($this->status, $needle)) {
+                if ($this->strict) {
+                    return false;
+                }
+                if (!$this->appendText($this->text[$this->cpos])) {
+                    return false;
+                }
+                $this->cpos++;
+                continue;
+            }
+            if ($this->recentlyReparsed) {
+                $this->recentlyReparsed = false;
+                continue;
+            }
+            $this->cpos += strlen($needle);
+        }
+
+        if ($this->cpos < strlen($this->text)) {
+            return $this->appendText(substr($this->text, $this->cpos));
+        }
+        return true;
+    }
+
+
+    /**
+     * Find the needle occurring first at or after $offset; on equal offsets the earlier needle in the list wins
+     *
+     * @param list<string> $needles
+     * @param int $offset
+     * @return array{0: string|null, 1: int}
+     */
+    private function _strpos(array $needles, int $offset): array
+    {
+        $curNeedle = null;
+        $curOffset = -1;
+
+        if ($offset < strlen($this->text)) {
+            foreach ($needles as $needle) {
+                $nOffset = strpos($this->text, $needle, $offset);
+                if ((false !== $nOffset) && (($curOffset < 0) || ($nOffset < $curOffset))) {
+                    $curNeedle = $needle;
+                    $curOffset = $nOffset;
+                }
+            }
+        }
+
+        return [$curNeedle, $curOffset];
+    }
+
+
+    /**
+     * @param list<callable> $filters
+     * @param string $text
+     * @return string
+     */
+    private function _applyFilters(array $filters, string $text): string
+    {
+        foreach ($filters as $filter) {
+            $ntext = $filter($text);
+            if (is_string($ntext)) {
+                $text = $ntext;
             }
         }
         return $text;
     }
 
-    /**
-     * Abstract method: Manipulate the tree
-     * @return bool
-     */
-    protected function modifyTree()
-    {
-        return true;
-    }
 
     /**
-     * Abstract method: Output tree
-     * @return bool
+     * @return Node|null
      */
-    protected function outputTree()
+    private function _topOfStack(): ?Node
     {
-        // this could e.g. call _applyPostfilters
-        return true;
-    }
-
-    /**
-     * Restart parsing after current block
-     *
-     * To achieve this the current top stack object is removed from the
-     * tree. Then the current item
-     *
-     * @return bool
-     */
-    protected function reparseAfterCurrentBlock()
-    {
-        // this should definitely not happen!
-        if (($stack_count = count($this->_stack)) < 2) {
-            return false;
-        }
-        $topelem =& $this->_stack[$stack_count-1];
-
-        $node_parent =& $topelem->_parent;
-        // remove the child from the tree
-        $res = $node_parent->removeChild($topelem, false);
-        if (! $res) {
-            return false;
-        }
-        $res = $this->popNode();
-        if (! $res) {
-            return false;
-        }
-
-        // now try to get the position of the object
-        if ($topelem->occurredAt < 0) {
-            return false;
-        }
-        // HACK: could it be necessary to set a different status
-        // if yes, how should this be achieved? Another member of
-        // StringParser_Node?
-        $this->setStatus(0);
-        $res = $this->appendText($this->_text[$topelem->occurredAt]);
-        if (! $res) {
-            return false;
-        }
-
-        $this->_cpos = $topelem->occurredAt + 1;
-        $this->_recentlyReparsed = true;
-
-        return true;
-    }
-
-    /**
-     * Abstract method: Close remaining blocks
-     */
-    protected function closeRemainingBlocks()
-    {
-        // everything closed
-        if (count($this->_stack) == 1) {
-            return true;
-        }
-        // not everything closed
-        if ($this->strict) {
-            return false;
-        }
-        while (count($this->_stack) > 1) {
-            $res = $this->popNode();
-            if (! $res) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Abstract method: Initialize the parser
-     */
-    private function _parserInit()
-    {
-        $this->setStatus(0);
-    }
-
-    /**
-     * Abstract method: Set a specific status
-     */
-    protected function setStatus($status)
-    {
-        if ($status != 0) {
-            return false;
-        }
-        $this->_charactersSearch = array();
-        $this->_charactersAllowed = array();
-        $this->_status = $status;
-        return true;
-    }
-
-    /**
-     * Abstract method: Handle status
-     * @param int $status The current status
-     * @param string $needle The needle that was found
-     * @return bool
-     */
-    protected function handleStatus($status, $needle)
-    {
-        $this->appendText ($needle);
-        $this->_cpos += strlen($needle);
-        return true;
-    }
-
-    /**
-     * Search mode loop
-     * @return bool
-     */
-    private function _searchLoop()
-    {
-        $i = 0;
-        while (1) {
-            // make sure this is false!
-            $this->_recentlyReparsed = false;
-
-            list ($needle, $offset) = $this->_strpos($this->_charactersSearch, $this->_cpos);
-            // parser ends here
-            if ($needle === false) {
-                // original status 0 => no problem
-                if (! $this->_status) {
-                    break;
-                }
-                // not in original status? strict mode?
-                if ($this->strict) {
-                    return false;
-                }
-                // break up parsing operation of current node
-                $res = $this->reparseAfterCurrentBlock();
-                if (! $res) {
-                    return false;
-                }
-                continue;
-            }
-            // get subtext
-            $subtext = substr ($this->_text, $this->_cpos, $offset - $this->_cpos);
-            $res = $this->appendText ($subtext);
-            if (! $res) {
-                return false;
-            }
-            $this->_cpos = $offset;
-            $res = $this->handleStatus($this->_status, $needle);
-            if (! $res && $this->strict) {
-                return false;
-            }
-            if (! $res) {
-                $res = $this->appendText($this->_text[$this->_cpos]);
-                if (! $res) {
-                    return false;
-                }
-                $this->_cpos++;
-                continue;
-            }
-            if ($this->_recentlyReparsed) {
-                $this->_recentlyReparsed = false;
-                continue;
-            }
-            $this->_cpos += strlen($needle);
-        }
-
-        // get subtext
-        if ($this->_cpos < strlen($this->_text)) {
-            $subtext = substr ($this->_text, $this->_cpos);
-            $res = $this->appendText($subtext);
-            if (! $res) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Loop mode loop
-     *
-     * @return bool
-     */
-    private function _loop()
-    {
-        // HACK: This method ist not yet implemented correctly, the code below
-        // DOES NOT WORK! Do not use!
-
-        return false;
-        /*
-		while ($this->_cpos < $this->_length) {
-			$needle = $this->_strDetect ($this->_charactersSearch, $this->_cpos);
-
-			if ($needle === false) {
-				// not found => see if character is allowed
-				if (!in_array($this->_text{$this->_cpos}, $this->_charactersAllowed)) {
-					if ($strict) {
-						return false;
-					}
-					// ignore
-					continue;
-				}
-				// lot's of FIXMES
-				$res = $this->appendText ($this->_text{$this->_cpos});
-				if (! $res) {
-					return false;
-				}
-			}
-
-			// get subtext
-			$subtext = substr ($this->_text, $offset, $offset - $this->_cpos);
-			$res = $this->appendText ($subtext);
-			if (! $res) {
-				return false;
-			}
-			$this->_cpos = $subtext;
-			$res = $this->handleStatus($this->_status, $needle);
-			if (! $res && $strict) {
-				return false;
-			}
-		}
-		// original status 0 => no problem
-		if (! $this->_status) {
-			return true;
-		}
-		// not in original status? strict mode?
-		if ($this->strict) {
-			return false;
-		}
-		// break up parsing operation of current node
-		$res = $this->reparseAfterCurrentBlock();
-		if (! $res) {
-			return false;
-		}
-		// this will not cause an infinite loop because
-		// reparseAfterCurrentBlock will increase _cpos by one!
-		return $this->_loop();
-		*/
-    }
-
-    /**
-     * Abstract method Append text depending on current status
-     * @param string $text The text to append
-     * @return bool On success, the function returns true, else false
-     */
-    protected function appendText($text)
-    {
-        if (!strlen($text)) {
-            return true;
-        }
-        // default: call appendToLastTextChild
-        return $this->appendToLastTextChild($text);
-    }
-
-    /**
-     * Append text to last text child of current top parser stack node
-     * @param string $text The text to append
-     * @return bool On success, the function returns true, else false
-     */
-    protected function appendToLastTextChild($text)
-    {
-        $scount = count($this->_stack);
-        if ($scount == 0) {
-            return false;
-        }
-        return $this->_stack[$scount-1]->appendToLastTextChild($text);
-    }
-
-    /**
-     * Searches {@link StringParser::_text _text} for every needle that is
-     * specified by using the {@link PHP_MANUAL#strpos strpos} function. It
-     * returns an associative array with the key <code>'needle'</code>
-     * pointing at the string that was found first and the key
-     * <code>'offset'</code> pointing at the offset at which the string was
-     * found first. If no needle was found, the <code>'needle'</code>
-     * element is <code>false</code> and the <code>'offset'</code> element
-     * is <code>-1</code>.
-     *
-     * @param array $needles
-     * @param int $offset
-     * @return array
-     * @see StringParser::_text
-     */
-    private function _strpos($needles, $offset)
-    {
-        $cur_needle = false;
-        $cur_offset = -1;
-
-        if ($offset < strlen($this->_text)) {
-            foreach ($needles as $needle) {
-                $n_offset = strpos($this->_text, $needle, $offset);
-                if ($n_offset !== false && ($n_offset < $cur_offset || $cur_offset < 0)) {
-                    $cur_needle = $needle;
-                    $cur_offset = $n_offset;
-                }
-            }
-        }
-
-        return array($cur_needle, $cur_offset, 'needle' => $cur_needle, 'offset' => $cur_offset);
-    }
-
-    /**
-     * Detects a string at the current position
-     *
-     * @param array $needles The strings that are to be detected
-     * @param int $offset The current offset
-     * @return mixed The string that was detected or the needle
-     */
-    private function _strDetect($needles, $offset)
-    {
-        foreach ($needles as $needle) {
-            $l = strlen($needle);
-            if (substr ($this->_text, $offset, $l) == $needle) {
-                return $needle;
-            }
-        }
-        return false;
-    }
-
-
-    /**
-     * Adds a node to the current parse stack
-     *
-     * @param object $node The node that is to be added
-     * @return bool True on success, else false.
-     * @see StringParser_Node, StringParser::_stack
-     */
-    protected function pushNode(&$node)
-    {
-        $stack_count = count($this->_stack);
-        $max_node =& $this->_stack[$stack_count-1];
-        if (! $max_node->appendChild($node)) {
-            return false;
-        }
-        $this->_stack[$stack_count] =& $node;
-        return true;
-    }
-
-    /**
-     * Removes a node from the current parse stack
-     *
-     * @return bool True on success, else false.
-     * @see StringParser_Node, StringParser::_stack
-     */
-    protected function popNode()
-    {
-        $stack_count = count($this->_stack);
-        unset($this->_stack[$stack_count-1]);
-        return true;
-    }
-
-    /**
-     * Execute a method on the top element
-     *
-     * @return mixed
-     */
-    protected function topNode()
-    {
-        $args = func_get_args();
-        if (!count($args)) {
-            return; // oops?
-        }
-        $method = array_shift ($args);
-        $stack_count = count($this->_stack);
-        $method = array(&$this->_stack[$stack_count-1], $method);
-        if (! is_callable($method)) {
-            return; // oops?
-        }
-        return call_user_func_array($method, $args);
-    }
-
-    /**
-     * Get a variable of the top element
-     *
-     * @return mixed
-     */
-    protected function topNodeVar($var)
-    {
-        $stack_count = count($this->_stack);
-        return $this->_stack[$stack_count-1]->$var;
+        return $this->stack[count($this->stack) - 1] ?? null;
     }
 }

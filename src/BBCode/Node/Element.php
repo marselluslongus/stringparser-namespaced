@@ -3,17 +3,17 @@
 namespace StringParser\BBCode\Node;
 
 /**
- * BB code string parsing class
+ * BB code string parsing: element node
  *
- * Version: 0.3.3
+ * Version: 0.4.0
  *
  * @author Christian Seiler <spam@christian-seiler.de>
- * @copyright Christian Seiler 2004-2008
+ * @copyright Christian Seiler 2004-2009
  * @package stringparser
  *
  * The MIT License
  *
- * Copyright (c) 2004-2008 Christian Seiler
+ * Copyright (c) 2004-2009 Christian Seiler
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,127 +32,92 @@ namespace StringParser\BBCode\Node;
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
+ * Changes:
+ *  marcel.pommer@flane.de 2012-09-24: removed assignments of return value of new by reference
+ *  marcel.pommer@flane.de 2021-03-23: PHP7 compliance, namespaces
+ *  marcel.pommer@flane.de 2026-11: PHP 8.4 rewrite: declared and typed properties,
+ *   no object references, dead loop mode removed, tree-manipulation bugs fixed
  */
 
-/**
- * marcel.pommer@flane.de 2012-09-24:
- *  removed assignments of return value of new by reference
- * marcel.pommer@flane.de 2021-03-23:
- *  PHP7 compliance, namespaces
- * marcel.pommer@flane.de 2026-01-14:
- *  PHP8 compliance
- */
-
-use \StringParser\StringParser;
-use \StringParser\BBCode;
-use \StringParser\Node\Node;
+use StringParser\BBCode;
+use StringParser\Node\Node;
+use StringParser\Traits\Flags;
 
 
 /**
- * BBCode String parser element node class
+ * BBCode string parser element node class
  *
  * @package stringparser
  */
-class Element extends Node
+final class Element extends Node
 {
-    /**
-     * The type of this node.
-     *
-     * This node is a bbcode element node.
-     *
-     * @access protected
-     * @var int
-     * @see BBCode::NODE_ELEMENT
-     */
-    var $_type = BBCode::NODE_ELEMENT;
+    use Flags;
+
+    public int $_type = BBCode::NODE_ELEMENT;
 
     /**
-     * Element name
-     *
-     * @access protected
-     * @var string
-     * @see StringParser_BBCode_Node_Element::name
-     * @see StringParser_BBCode_Node_Element::setName
-     * @see StringParser_BBCode_Node_Element::appendToName
+     * Element (tag) name as written in the text; legacy name, read by consumer callbacks
      */
-    var $_name = '';
+    public string $_name = '';
 
     /**
-     * Element flags
+     * Element attributes; bare attributes (mixed attribute types) have the value true
      *
-     * @access protected
-     * @var array
+     * @var array<string|int, string|true>
      */
-    var $_flags = array();
+    public array $attributes = [];
 
     /**
-     * Element attributes
+     * Code definition as registered by BBCode::addCode()
      *
-     * @access protected
-     * @var array
+     * @var array<string, mixed>
      */
-    var $_attributes = array();
+    public array $codeInfo = [];
 
     /**
-     * Had a close tag
-     *
-     * @access protected
-     * @var bool
+     * Whether the element was closed by an explicit close tag
      */
-    var $_hadCloseTag = false;
+    public bool $hasCloseTag = false;
 
     /**
-     * Was processed by paragraph handling
-     *
-     * @access protected
-     * @var bool
+     * Whether the element was processed by paragraph handling
      */
-    var $_paragraphHandled = false;
-
-    /**
-     * @var array
-     */
-    public $_codeInfo;
+    public bool $isParagraphHandled = false;
 
 
     /**
-     * Duplicate this node (but without children / parents)
+     * Duplicate this node without children and parent
      *
-     * @access public
-     * @return object
+     * @return Element
      */
-    public function &duplicate()
+    public function duplicate(): Element
     {
-        $newnode = new Element($this->occurredAt);//$newnode = new StringParser_BBCode_Node_Element ($this->occurredAt);
+        $newnode = new Element($this->occurredAt);
         $newnode->_name = $this->_name;
-        $newnode->_flags = $this->_flags;
-        $newnode->_attributes = $this->_attributes;
-        $newnode->_hadCloseTag = $this->_hadCloseTag;
-        $newnode->_paragraphHandled = $this->_paragraphHandled;
-        $newnode->_codeInfo = $this->_codeInfo;
+        $newnode->flags = $this->flags;
+        $newnode->attributes = $this->attributes;
+        $newnode->hasCloseTag = $this->hasCloseTag;
+        $newnode->isParagraphHandled = $this->isParagraphHandled;
+        $newnode->codeInfo = $this->codeInfo;
         return $newnode;
     }
 
 
     /**
-     * Retreive name of this element
-     *
-     * @access public
      * @return string
      */
-    public function name()
+    public function name(): string
     {
         return $this->_name;
     }
 
+
     /**
-     * Set name of this element
-     *
-     * @access public
-     * @param string $name The new name of the element
+     * @param string $name
      * @return true
      */
-    public function setName($name)
+    public function setName(string $name): bool
     {
         $this->_name = $name;
         return true;
@@ -160,13 +125,10 @@ class Element extends Node
 
 
     /**
-     * Append to name of this element
-     *
-     * @access public
-     * @param string $chars The chars to append to the name of the element
+     * @param string $chars
      * @return true
      */
-    public function appendToName($chars)
+    public function appendToName(string $chars): bool
     {
         $this->_name .= $chars;
         return true;
@@ -174,443 +136,352 @@ class Element extends Node
 
 
     /**
-     * Append to attribute of this element
-     *
-     * @access public
-     * @param string $name The name of the attribute
-     * @param string $chars The chars to append to the attribute of the element
+     * @param string $name
+     * @param string $chars
      * @return true
      */
-    public function appendToAttribute($name, $chars)
+    public function appendToAttribute(string $name, string $chars): bool
     {
-        if (! isset($this->_attributes[$name])) {
-            $this->_attributes[$name] = $chars;
-            return true;
-        }
-        $this->_attributes[$name] .= $chars;
-        return true;
-    }
-
-    /**
-     * Set attribute
-     *
-     * @access public
-     * @param string $name The name of the attribute
-     * @param string $value The new value of the attribute
-     * @return true
-     */
-    public function setAttribute($name, $value)
-    {
-        $this->_attributes[$name] = $value;
+        $this->attributes[$name] = ($this->attributes[$name] ?? '') . $chars;
         return true;
     }
 
 
     /**
-     * Set code info
-     *
-     * @access public
-     * @param array $info The code info array
+     * @param string $name
+     * @param string|true $value
      * @return true
      */
-    public function setCodeInfo($info)
+    public function setAttribute(string $name, string|bool $value): bool
     {
-        $this->_codeInfo = $info;
-        $this->_flags = $info['flags'];
+        $this->attributes[$name] = $value;
         return true;
     }
 
 
     /**
-     * Get attribute value
+     * Set the code definition; replaces the flags with the code's flags
      *
-     * @access public
-     * @param string $name The name of the attribute
+     * @param array<string, mixed> $info
      * @return true
      */
-    public function attribute($name)
+    public function setCodeInfo(array $info): bool
     {
-        if (! isset($this->_attributes[$name])) {
-            return null;
-        }
-        return $this->_attributes[$name];
+        $this->codeInfo = $info;
+        $this->flags = $info['flags'];
+        return true;
     }
 
 
     /**
-     * Set flag that this element had a close tag
-     *
-     * @access public
+     * @param string $name
+     * @return string|true|null
      */
-    public function setHadCloseTag()
+    public function attribute(string $name): string|bool|null
     {
-        $this->_hadCloseTag = true;
+        return $this->attributes[$name] ?? null;
     }
 
 
     /**
-     * Set flag that this element was already processed by paragraph handling
-     *
-     * @access public
+     * @return void
      */
-    public function setParagraphHandled()
+    public function setHadCloseTag(): void
     {
-        $this->_paragraphHandled = true;
+        $this->hasCloseTag = true;
     }
 
+
     /**
-     * Get flag if this element was already processed by paragraph handling
-     *
-     * @access public
+     * @return void
+     */
+    public function setParagraphHandled(): void
+    {
+        $this->isParagraphHandled = true;
+    }
+
+
+    /**
      * @return bool
      */
-    public function paragraphHandled()
+    public function paragraphHandled(): bool
     {
-        return $this->_paragraphHandled;
+        return $this->isParagraphHandled;
     }
 
 
     /**
-     * Get flag if this element had a close tag
-     *
-     * @access public
      * @return bool
      */
-    public function hadCloseTag()
+    public function hadCloseTag(): bool
     {
-        return $this->_hadCloseTag;
+        return $this->hasCloseTag;
     }
 
 
     /**
      * Determines whether a criterium matches this node
      *
-     * @access public
-     * @param string $criterium The criterium that is to be checked
-     * @param mixed $value The value that is to be compared
-     * @return bool True if this node matches that criterium
+     * Supported: 'tagName', 'needsTextNodeModification', 'flag:<name>', '!flag:<name>',
+     * 'flag=:<name>', '!flag=:<name>' (the latter two compare strictly)
+     *
+     * @param string $criterium
+     * @param mixed $value
+     * @return bool
      */
-    public function matchesCriterium($criterium, $value)
+    public function matchesCriterium(string $criterium, mixed $value): bool
     {
-        if ($criterium == 'tagName') {
-            return ($value == $this->_name);
+        if ('tagName' === $criterium) {
+            return $value == $this->_name;
         }
-        if ($criterium == 'needsTextNodeModification') {
-            return (($this->getFlag ('opentag.before.newline', 'integer', BBCode::NEWLINE_PARSE) != BBCode::NEWLINE_PARSE || $this->getFlag ('opentag.after.newline', 'integer', BBCode::NEWLINE_PARSE) != BBCode::NEWLINE_PARSE || ($this->_hadCloseTag && ($this->getFlag ('closetag.before.newline', 'integer', BBCode::NEWLINE_PARSE) != BBCode::NEWLINE_PARSE || $this->getFlag ('closetag.after.newline', 'integer', BBCode::NEWLINE_PARSE) != BBCode::NEWLINE_PARSE))) == (bool)$value);
+        if ('needsTextNodeModification' === $criterium) {
+            $needs = (BBCode::NEWLINE_PARSE !== $this->_newlineFlag('opentag.before.newline'))
+                || (BBCode::NEWLINE_PARSE !== $this->_newlineFlag('opentag.after.newline'))
+                || (
+                    $this->hasCloseTag
+                    && (
+                        (BBCode::NEWLINE_PARSE !== $this->_newlineFlag('closetag.before.newline'))
+                        || (BBCode::NEWLINE_PARSE !== $this->_newlineFlag('closetag.after.newline'))
+                    )
+                );
+            return $needs === (bool)$value;
         }
-        if (substr($criterium, 0, 5) == 'flag:') {
-            $criterium = substr($criterium, 5);
-            return ($this->getFlag($criterium) == $value);
+        if (str_starts_with($criterium, 'flag:')) {
+            return $this->getFlag(substr($criterium, 5)) == $value;
         }
-        if (substr($criterium, 0, 6) == '!flag:') {
-            $criterium = substr($criterium, 6);
-            return ($this->getFlag($criterium) != $value);
+        if (str_starts_with($criterium, '!flag:')) {
+            return $this->getFlag(substr($criterium, 6)) != $value;
         }
-        if (substr($criterium, 0, 6) == 'flag=:') {
-            $criterium = substr($criterium, 6);
-            return ($this->getFlag($criterium) === $value);
+        if (str_starts_with($criterium, 'flag=:')) {
+            return $this->getFlag(substr($criterium, 6)) === $value;
         }
-        if (substr($criterium, 0, 7) == '!flag=:') {
-            $criterium = substr($criterium, 7);
-            return ($this->getFlag($criterium) !== $value);
+        if (str_starts_with($criterium, '!flag=:')) {
+            return $this->getFlag(substr($criterium, 7)) !== $value;
         }
         return parent::matchesCriterium($criterium, $value);
     }
 
 
     /**
-     * Get first child if it is a text node
+     * Get the first child if it is a text node
      *
-     * @access public
-     * @return mixed
+     * @return Node|null
      */
-    public function &firstChildIfText()
+    public function firstChildIfText(): ?Node
     {
-        $ret =& $this->firstChild();
-        if (is_null($ret)) {
-            return $ret;
-        }
-        if ($ret->_type != Node::NODE_TEXT) {
-            // DON'T DO $ret = null WITHOUT unset BEFORE!
-            // ELSE WE WILL ERASE THE NODE ITSELF! EVIL!
-            unset($ret);
-            $ret = null;
+        $ret = $this->firstChild();
+        if ((null === $ret) || (Node::NODE_TEXT !== $ret->_type)) {
+            return null;
         }
         return $ret;
     }
 
 
     /**
-     * Get last child if it is a text node AND if this element had a close tag
+     * Get the last child if it is a text node and this element had a close tag;
+     * descends into a last child element that had no close tag
      *
-     * @access public
-     * @return mixed
+     * @return Node|null
      */
-    public function &lastChildIfText()
+    public function lastChildIfText(): ?Node
     {
-        $ret =& $this->lastChild();
-        if (is_null($ret)) {
+        $ret = $this->lastChild();
+        if (null === $ret) {
+            return null;
+        }
+        if ((Node::NODE_TEXT === $ret->_type) && $this->hasCloseTag) {
             return $ret;
         }
-        if ($ret->_type != Node::NODE_TEXT || !$this->_hadCloseTag) {
-            // DON'T DO $ret = null WITHOUT unset BEFORE!
-            // ELSE WE WILL ERASE THE NODE ITSELF! EVIL!
-            if ($ret->_type != Node::NODE_TEXT && !$ret->hadCloseTag()) {
-                $ret2 =& $ret->findPrevAdjentTextNodeHelper();
-                unset($ret);
-                $ret =& $ret2;
-                unset($ret2);
-            } else {
-                unset($ret);
-                $ret = null;
-            }
+        if ((Node::NODE_TEXT !== $ret->_type) && !$ret->hadCloseTag()) {
+            return $ret->findPrevAdjentTextNodeHelper();
         }
-        return $ret;
+        return null;
     }
 
 
     /**
-     * Find next adjent text node after close tag
+     * Find the text node adjacent to the close tag
      *
-     * returns the node or null if none exists
-     *
-     * @access public
-     * @return mixed
+     * @return Node|null
      */
-    public function &findNextAdjentTextNode()
+    public function findNextAdjentTextNode(): ?Node
     {
-        $ret = null;
-        if (is_null($this->_parent)) {
-            return $ret;
+        if ((null === $this->_parent) || !$this->hasCloseTag) {
+            return null;
         }
-        if (! $this->_hadCloseTag) {
-            return $ret;
+        $siblings = $this->_parent->children;
+        $found = $this->_indexInParent();
+        if (null === $found) {
+            return null;
         }
-        $ccount = count($this->_parent->_children);
-        $found = false;
-        for ($i = 0; $i < $ccount; $i++) {
-            if ($this->_parent->_children[$i]->equals($this)) {
-                $found = $i;
-                break;
-            }
+        if ($found < count($siblings) - 1) {
+            return (Node::NODE_TEXT === $siblings[$found + 1]->_type) ? $siblings[$found + 1] : null;
         }
-        if ($found === false) {
-            return $ret;
+        if ((BBCode::NODE_ELEMENT === $this->_parent->_type) && !$this->_parent->hadCloseTag()) {
+            return $this->_parent->findNextAdjentTextNode();
         }
-        if ($found < $ccount - 1) {
-            if ($this->_parent->_children[$found+1]->_type == Node::NODE_TEXT) {
-                return $this->_parent->_children[$found+1];
-            }
-            return $ret;
-        }
-        if ($this->_parent->_type == BBCode::NODE_ELEMENT && !$this->_parent->hadCloseTag()) {
-            $ret =& $this->_parent->findNextAdjentTextNode();
-            return $ret;
-        }
-        return $ret;
+        return null;
     }
 
 
     /**
-     * Find previous adjent text node before open tag
+     * Find the text node adjacent to the open tag
      *
-     * returns the node or null if none exists
-     *
-     * @access public
-     * @return mixed
+     * @return Node|null
      */
-    public function &findPrevAdjentTextNode()
+    public function findPrevAdjentTextNode(): ?Node
     {
-        $ret = null;
-        if (is_null($this->_parent)) {
-            return $ret;
+        if (null === $this->_parent) {
+            return null;
         }
-        $ccount = count($this->_parent->_children);
-        $found = false;
-        for ($i = 0; $i < $ccount; $i++) {
-            if ($this->_parent->_children[$i]->equals($this)) {
-                $found = $i;
-                break;
-            }
+        $found = $this->_indexInParent();
+        if ((null === $found) || (0 === $found)) {
+            return null;
         }
-        if ($found === false) {
-            return $ret;
+        $prev = $this->_parent->children[$found - 1];
+        if (Node::NODE_TEXT === $prev->_type) {
+            return $prev;
         }
-        if ($found > 0) {
-            if ($this->_parent->_children[$found-1]->_type == Node::NODE_TEXT) {
-                return $this->_parent->_children[$found-1];
-            }
-            if (! $this->_parent->_children[$found-1]->hadCloseTag()) {
-                $ret =& $this->_parent->_children[$found-1]->findPrevAdjentTextNodeHelper();
-            }
-            return $ret;
+        if (!$prev->hadCloseTag()) {
+            return $prev->findPrevAdjentTextNodeHelper();
         }
-        return $ret;
+        return null;
     }
 
 
     /**
-     * Helper function for findPrevAdjentTextNode
+     * Helper for findPrevAdjentTextNode(): the last child if it is text, recursing
+     * into a last child element without close tag
      *
-     * Looks at the last child node; if it's a text node, it returns it,
-     * if the element node did not have an open tag, it calls itself
-     * recursively.
+     * @return Node|null
      */
-    public function & findPrevAdjentTextNodeHelper()
+    public function findPrevAdjentTextNodeHelper(): ?Node
     {
-        $lastnode =& $this->lastChild();
-        if ($lastnode === null || $lastnode->_type == Node::NODE_TEXT) {
+        $lastnode = $this->lastChild();
+        if ((null === $lastnode) || (Node::NODE_TEXT === $lastnode->_type)) {
             return $lastnode;
         }
-        if (! $lastnode->hadCloseTag()) {
-            $ret =& $lastnode->findPrevAdjentTextNodeHelper();
-        } else {
-            $ret = null;
+        if (!$lastnode->hadCloseTag()) {
+            return $lastnode->findPrevAdjentTextNodeHelper();
         }
-        return $ret;
+        return null;
     }
 
 
     /**
-     * Get Flag
+     * Validate the code by calling its callback
      *
-     * @access public
-     * @param string $flag The requested flag
-     * @param string $type The requested type of the return value
-     * @param mixed $default The default return value
-     * @return mixed
-     */
-    public function getFlag($flag, $type = 'mixed', $default = null)
-    {
-        if (! isset($this->_flags[$flag])) {
-            return $default;
-        }
-        $return = $this->_flags[$flag];
-        if ($type != 'mixed') {
-            settype($return, $type);
-        }
-        return $return;
-    }
-
-
-    /**
-     * Set a flag
-     *
-     * @access public
-     * @param string $name The name of the flag
-     * @param mixed $value The value of the flag
-     * @return true
-     */
-    public function setFlag($name, $value)
-    {
-        $this->_flags[$name] = $value;
-        return true;
-    }
-
-
-    /**
-     * Validate code
-     *
-     * @access public
-     * @param string $action The action which is to be called ('validate'
-     *                       for first validation, 'validate_again' for
-     *                       second validation (optional))
+     * @param string $action 'validate' or 'validate_again'
      * @return bool
      */
-    public function validate($action = 'validate')
+    public function validate(string $action = 'validate'): bool
     {
-        if ($action != 'validate' && $action != 'validate_again') {
+        if (('validate' !== $action) && ('validate_again' !== $action)) {
             return false;
         }
-        if ($this->_codeInfo['callback_type'] != 'simple_replace' && $this->_codeInfo['callback_type'] != 'simple_replace_single') {
-            if (! is_callable($this->_codeInfo['callback_func'])) {
-                return false;
-            }
-
-            if (($this->_codeInfo['callback_type'] == 'usecontent' || $this->_codeInfo['callback_type'] == 'usecontent?' || $this->_codeInfo['callback_type'] == 'callback_replace?') && count($this->_children) == 1 && $this->_children[0]->_type == Node::NODE_TEXT) {
-                // we have to make sure the object gets passed on as a reference
-                // if we do call_user_func(..., &$this) this will clash with PHP5
-                $callArray = array($action, $this->_attributes, $this->_children[0]->content, $this->_codeInfo['callback_params']);
-                $callArray[] =& $this;
-                $res = call_user_func_array($this->_codeInfo['callback_func'], $callArray);
-                if ($res) {
-                    // ok, now, if we've got a usecontent type, set a flag that
-                    // this may not be broken up by paragraph handling!
-                    // but PLEASE do NOT change if already set to any other setting
-                    // than BBCode::PARAGRAPH_ALLOW_BREAKUP because we could
-                    // override e.g. BBCode::PARAGRAPH_BLOCK_ELEMENT!
-                    $val = $this->getFlag('paragraph_type', 'integer', BBCode::PARAGRAPH_ALLOW_BREAKUP);
-                    if ($val == BBCode::PARAGRAPH_ALLOW_BREAKUP) {
-                        $this->_flags['paragraph_type'] = BBCode::PARAGRAPH_ALLOW_INSIDE;
-                    }
-                }
-                return $res;
-            }
-
-            // we have to make sure the object gets passed on as a reference
-            // if we do call_user_func(..., &$this) this will clash with PHP5
-            $callArray = array($action, $this->_attributes, null, $this->_codeInfo['callback_params']);
-            $callArray[] =& $this;
-            return call_user_func_array($this->_codeInfo['callback_func'], $callArray);
+        $callbackType = $this->codeInfo['callback_type'];
+        if (('simple_replace' === $callbackType) || ('simple_replace_single' === $callbackType)) {
+            return !count($this->attributes);
         }
-        return (bool)(!count($this->_attributes));
+        if (!is_callable($this->codeInfo['callback_func'])) {
+            return false;
+        }
+
+        $usesContent = in_array($callbackType, ['usecontent', 'usecontent?', 'callback_replace?'], true);
+        if ($usesContent && (1 === count($this->children)) && (Node::NODE_TEXT === $this->children[0]->_type)) {
+            $res = $this->_callback($action, $this->children[0]->content);
+            // content-using codes may not be broken up by paragraph handling, unless
+            // already set to anything other than the default (e.g. PARAGRAPH_BLOCK_ELEMENT)
+            if ($res && (BBCode::PARAGRAPH_ALLOW_BREAKUP === $this->getFlag('paragraph_type', 'integer', BBCode::PARAGRAPH_ALLOW_BREAKUP))) {
+                $this->flags['paragraph_type'] = BBCode::PARAGRAPH_ALLOW_INSIDE;
+            }
+            return (bool)$res;
+        }
+
+        return (bool)$this->_callback($action, null);
     }
 
 
     /**
-     * Get replacement for this code
+     * Get the replacement for this code
      *
-     * @access public
-     * @param string $subcontent The content of all sub-nodes
-     * @return string
+     * @param string $subcontent Output of all child nodes
+     * @return mixed string on success; anything else makes the whole parse fail
      */
-    public function getReplacement($subcontent)
+    public function getReplacement(string $subcontent): mixed
     {
-        if ($this->_codeInfo['callback_type'] == 'simple_replace' || $this->_codeInfo['callback_type'] == 'simple_replace_single') {
-            if ($this->_codeInfo['callback_type'] == 'simple_replace_single') {
-                if (strlen($subcontent)) { // can't be!
-                    return false;
-                }
-                return $this->_codeInfo['callback_params']['start_tag'];
-            }
-            return $this->_codeInfo['callback_params']['start_tag'] . $subcontent . $this->_codeInfo['callback_params']['end_tag'];
+        $callbackType = $this->codeInfo['callback_type'];
+        if ('simple_replace_single' === $callbackType) {
+            return ('' === $subcontent) ? $this->codeInfo['callback_params']['start_tag'] : false;
         }
-        // else usecontent, usecontent? or callback_replace or callback_replace_single
-        // => call function (the function is callable, determined in validate()!)
-
-        // we have to make sure the object gets passed on as a reference
-        // if we do call_user_func(..., &$this) this will clash with PHP5
-        $callArray = array('output', $this->_attributes, $subcontent, $this->_codeInfo['callback_params']);
-        $callArray[] =& $this;
-        return call_user_func_array($this->_codeInfo['callback_func'], $callArray);
+        if ('simple_replace' === $callbackType) {
+            return $this->codeInfo['callback_params']['start_tag'] . $subcontent . $this->codeInfo['callback_params']['end_tag'];
+        }
+        // usecontent, usecontent?, callback_replace(?), callback_replace_single;
+        // the callback is callable, determined in validate()
+        return $this->_callback('output', $subcontent);
     }
 
 
     /**
-     * Dump this node to a string
-     *
-     * @access protected
      * @return string
      */
-    protected function dumpToString()
+    protected function dumpToString(): string
     {
         $str = 'bbcode "' . substr(preg_replace('/\s+/', ' ', $this->_name), 0, 40) . '"';
-        if (count($this->_attributes)) {
-            $attribs = array_keys($this->_attributes);
+        if (count($this->attributes)) {
+            $attribs = array_keys($this->attributes);
             sort($attribs);
-            $str .= ' (';
-            $i = 0;
+            $parts = [];
             foreach ($attribs as $attrib) {
-                if ($i != 0) {
-                    $str .= ', ';
-                }
-                $str .= $attrib . '="';
-                $str .= substr(preg_replace('/\s+/', ' ', $this->_attributes[$attrib]), 0, 10);
-                $str .= '"';
-                $i++;
+                $parts[] = $attrib . '="' . substr(preg_replace('/\s+/', ' ', (string)$this->attributes[$attrib]), 0, 10) . '"';
             }
-            $str .= ')';
+            $str .= ' (' . implode(', ', $parts) . ')';
         }
         return $str;
+    }
+
+
+    /**
+     * Call the code's callback: ($action, $attributes, $content, $params, $node)
+     *
+     * @param string $action
+     * @param string|null $content
+     * @return mixed
+     */
+    private function _callback(string $action, ?string $content): mixed
+    {
+        return call_user_func(
+            $this->codeInfo['callback_func'],
+            $action,
+            $this->attributes,
+            $content,
+            $this->codeInfo['callback_params'],
+            $this
+        );
+    }
+
+
+    /**
+     * @param string $flag
+     * @return int
+     */
+    private function _newlineFlag(string $flag): int
+    {
+        return $this->getFlag($flag, 'integer', BBCode::NEWLINE_PARSE);
+    }
+
+
+    /**
+     * @return int|null
+     */
+    private function _indexInParent(): ?int
+    {
+        foreach ($this->_parent->children as $i => $sibling) {
+            if ($sibling->equals($this)) {
+                return $i;
+            }
+        }
+        return null;
     }
 }
